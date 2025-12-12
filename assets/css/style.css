@@ -1,0 +1,287 @@
+/* assets/css/style.css */
+
+/* Importar fonte moderna (Inter) para ficar parecido com dashboards gringos */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+html,
+body,
+[class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+
+/* Remove o espaço excessivo no topo da página */
+div.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
+
+div.default-class {
+    padding: 2px;
+}
+
+.text-left {
+    text-align: left !important;
+    /* O !important força a regra caso algo esteja bloqueando */
+    width: 100%;
+    /* Garante que a caixa ocupe todo o espaço disponível */
+    display: block;
+    /* Garante comportamento de bloco */
+    padding-left: 20px;
+}
+
+
+/* --- ESTILO DOS CARDS (CAIXINHAS) --- */
+div.metric-card {
+    background-color: #FFFFFF;
+    border: 1px solid #E0E0E0;
+    border-radius: 12px;
+    /* Bordas arredondadas */
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    /* Sombra suave */
+    transition: transform 0.2s ease-in-out;
+    /* Efeito ao passar o mouse */
+    margin-bottom: 1rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+div.metric-card:hover {
+    transform: translateY(-5px);
+    /* Sobe um pouquinho quando passa o mouse */
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Títulos dentro do Card */
+.metric-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #6C757D;
+    /* Cinza médio */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Valor dentro do Card */
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #0D6EFD;
+    /* Azul Bootstrap (Prefeitura) */
+    margin: 10px 0;
+}
+
+/* Delta (Variação) */
+.metric-delta {
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 15px;
+}
+
+/* Verde */
+.delta-pos {
+    background-color: #D1E7DD;
+    color: #0F5132;
+}
+
+/* Vermelho */
+.delta-neg {
+    background-color: #F8D7DA;
+    color: #842029;
+}
+
+
+/* Estilo do Cartão Branco (Container) */
+.card-dashboard {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    /* Sombra suave */
+    border: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Centraliza tudo horizontalmente */
+    justify-content: center;
+    margin-bottom: 20px;
+    transition: transform 0.2s;
+
+    gap: 0.5rem;
+}
+
+.card-dashboard:hover {
+    transform: translateY(-2px);
+    /* Efeito sutil ao passar o mouse */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Título do Cartão */
+.card-title {
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #6c757d;
+    /* Cinza igual da sua imagem */
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 25px;
+    /* Espaço entre o título e a caixa */
+    text-align: center;
+}
+
+
+/* O container principal - O Tanque de Vidro */
+.tanque-moderno {
+    position: relative;
+    width: 120px;
+    /* Um pouco mais largo */
+    height: 180px;
+    /* Mais alto */
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.4));
+    /* Efeito vidro */
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    /* Borda sutil */
+    border-radius: 15px;
+    /* Cantos arredondados */
+    overflow: hidden;
+    /* Mantém a água dentro */
+    margin: 0 auto;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), inset 0 0 20px rgba(255, 255, 255, 0.2);
+    /* Sombras para profundidade */
+    backdrop-filter: blur(5px);
+    /* Desfoque atrás do vidro (opcional, fica bonito) */
+}
+
+/* --- CONFIGURAÇÃO BASE (Comum para as duas) --- */
+.agua-animada,
+.agua-estavel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    /* A altura é definida inline no Python */
+    background: linear-gradient(to top, #00bfff, #007acc);
+    border-bottom-left-radius: 15px;
+    border-bottom-right-radius: 15px;
+    transition: height 1s ease-in-out;
+    z-index: 1;
+}
+
+/* --- ESTILO 1: ÁGUA ANIMADA (Intensa/Rápida) --- */
+.agua-animada::before {
+    content: "";
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    top: -150%;
+    left: -50%;
+    background-color: rgba(255, 255, 255, 0.4);
+    border-radius: 40%;
+    /* Mais "quadrado" = ondas maiores */
+    animation: onda-giratoria 6s linear infinite;
+    /* Rápido */
+    z-index: 2;
+}
+
+.agua-animada::after {
+    content: "";
+    position: absolute;
+    width: 205%;
+    height: 205%;
+    top: -150%;
+    left: -50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 45%;
+    animation: onda-giratoria 10s linear infinite reverse;
+    z-index: 3;
+}
+
+/* --- ESTILO 2: ÁGUA ESTÁVEL (Calma/Lenta) --- */
+/* --- ESTILO 2: ÁGUA ESTÁVEL (Quase Parada / Zen) --- */
+.agua-estavel::before {
+    content: "";
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    top: -150%;
+    left: -50%;
+    background-color: rgba(255, 255, 255, 0.4);
+
+    /* MUDANÇA: 49% deixa a onda minúscula, quase reta */
+    border-radius: 49%;
+
+    /* MUDANÇA: 60s = 1 minuto para dar uma volta */
+    animation: onda-giratoria 60s linear infinite;
+
+    z-index: 2;
+}
+
+.agua-estavel::after {
+    content: "";
+    position: absolute;
+    width: 205%;
+    height: 205%;
+    top: -150%;
+    left: -50%;
+    background-color: rgba(255, 255, 255, 0.2);
+
+    /* MUDANÇA: 49.5% é praticamente um círculo perfeito */
+    border-radius: 49.5%;
+
+    /* MUDANÇA: 1min e 20s para uma volta */
+    animation: onda-giratoria 80s linear infinite reverse;
+
+    z-index: 3;
+}
+
+/* Animação de rotação (compartilhada) */
+@keyframes onda-giratoria {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Texto da porcentagem */
+.texto-porcentagem-moderno {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Arial', sans-serif;
+    font-weight: 900;
+    font-size: 24px;
+    color: #0c3e5f;
+    z-index: 10;
+    text-shadow: 0px 0px 8px rgba(255, 255, 255, 0.9);
+}
+
+
+/* --- MODIFICADOR DE COR: ESVAZIANDO --- */
+/* Quando aplicarmos esta classe, a água fica vermelha */
+.agua-vermelha {
+    /* Gradiente vermelho alerta */
+    background: linear-gradient(to top, #ff6b6b, #c0392b) !important;
+}
+
+/* Opcional: Se quiser garantir que o azul é o padrão explícito */
+.agua-azul {
+    background: linear-gradient(to top, #00bfff, #007acc) !important;
+}
+
+.agua-azul-estavel {
+    /* Um gradiente mais "frio" e profundo (Royal Blue / Turquesa) */
+    /* Diferente do azul brilhante de encher */
+    background: linear-gradient(to top, #2980b9, #6dd5fa) !important;
+
+    /* OPÇÃO 2: Se preferir um azul mais escuro/noturno, use este: */
+    /* background: linear-gradient(to top, #1e3c72, #2a5298) !important; */
+}

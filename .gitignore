@@ -1,0 +1,39 @@
+# Ambiente Virtual
+.venv/
+venv/
+env/
+
+# Arquivos compilados do Python (Lixo)
+__pycache__/
+*.py[cod]
+
+# Variáveis de Ambiente e Senhas (CRÍTICO: NUNCA SUBIR)
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Banco de dados local (se usar SQLite/DuckDB para testes)
+*.db
+*.duckdb
+
+# Ignora arquivos de dados (Buffer) para não pesar o git
+*.parquet
+*.csv
+*.xlsx
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VS Code settings
+.vscode/
+
+# Pasta de Teste - Tratamentos e Jupyter Notebook's
+src/test/
+
+# Arquivo do Streamlit
+.streamlit/secrets.toml

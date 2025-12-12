@@ -1,0 +1,26 @@
+[theme]
+primaryColor = "#0D6EFD"     # Azul Bootstrap (Primary)
+backgroundColor = "#FFFFFF"  # Fundo limpo
+secondaryBackgroundColor = "#F8F9FA" # Cinza bem claro para sidebar/cards
+textColor = "#212529"        # Cinza escuro (quase preto) para texto
+font = "sans serif"
+
+[server]
+headless = true              # Boa prática para servidores
+runOnSave = true             # Atualiza o app assim que você salva o arquivo (muito útil dev)
+
+[client]
+showErrorDetails = false     # Em produção, esconde erros feios do usuário
+toolbarMode = "viewer"       # Deixa a barra de ferramentas mais discreta
+
+
+# ----------------------------------------------------
+# TEMA FUTURO: SOFT DARK (Para ativar, descomente abaixo e comente o bloco acima)
+# ----------------------------------------------------
+# [theme]
+# base = "dark"                # Avisa que a base é escura (inverte componentes nativos)
+# primaryColor = "#3B82F6"     # Azul um pouco mais claro para brilhar no escuro
+# backgroundColor = "#1E1E1E"  # <--- O SEGREDO: Cinza Chumbo (Soft), não preto #000
+# secondaryBackgroundColor = "#2D2D2D" # Cinza um pouco mais claro para destaque
+# textColor = "#FAFAFA"        # Branco quase total
+# font = "sans serif"
