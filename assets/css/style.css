@@ -254,6 +254,7 @@ div.metric-card:hover {
 .texto-porcentagem-moderno {
     position: absolute;
     top: 50%;
+    /* Alterado de 50% para 40% para subir */
     left: 50%;
     transform: translate(-50%, -50%);
     font-family: 'Arial', sans-serif;
@@ -262,6 +263,23 @@ div.metric-card:hover {
     color: #0c3e5f;
     z-index: 10;
     text-shadow: 0px 0px 8px rgba(255, 255, 255, 0.9);
+}
+
+/* Texto da medida */
+.texto-moderno {
+    position: absolute;
+    top: 85%;
+    /* Alterado de 50% para 65% para descer */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Arial', sans-serif;
+    font-size: 15px;
+    /* Reduzi levemente (de 16 para 14) para dar hierarquia visual */
+    font-weight: bold;
+    /* Adicionei negrito para legibilidade */
+    color: #0c3e5f;
+    z-index: 10;
+    text-shadow: 0px 0px 5px rgba(255, 255, 255, 0.5);
 }
 
 
@@ -284,4 +302,104 @@ div.metric-card:hover {
 
     /* OPÇÃO 2: Se preferir um azul mais escuro/noturno, use este: */
     /* background: linear-gradient(to top, #1e3c72, #2a5298) !important; */
+}
+
+
+/* --- TIMER DO RESERVATÓRIO --- */
+.timer-badge {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    padding: 5px 15px;
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 600;
+    margin-top: 10px;
+    display: inline-block;
+}
+
+.icon-clock {
+    margin-right: 5px;
+}
+
+/* --- CARDS DAS BOMBAS --- */
+.card-bomba {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 15px 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: row;
+    /* Lado a lado: Texto na esq, Botões na dir */
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    /* Espaço entre as bombas */
+    transition: all 0.2s;
+}
+
+.card-bomba:hover {
+    transform: translateX(5px);
+    border-color: #0D6EFD;
+}
+
+.bomba-titulo {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+.bomba-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-on {
+    color: #198754;
+}
+
+/* Verde */
+.status-off {
+    color: #dc3545;
+}
+
+/* Vermelho */
+
+/* --- BOTÕES TOGGLE (VISUAL APENAS) --- */
+.toggle-container {
+    display: flex;
+    gap: 5px;
+    background-color: #f1f3f5;
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.btn-toggle {
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-active-on {
+    background-color: #198754;
+    color: white;
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.3);
+}
+
+.btn-active-off {
+    background-color: #dc3545;
+    color: white;
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.btn-inactive {
+    background-color: transparent;
+    color: #adb5bd;
 }

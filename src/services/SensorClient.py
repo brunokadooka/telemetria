@@ -1,158 +1,178 @@
 import os
-import time
 import requests
+import streamlit as st  # Necessário para o Cache
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 
 class SensorClient:
 
-    def __init__(self, usuario="Usuario", local="Lavadeira"):
-
-        # Carregando as informações do arquivo .env
+    def __init__(self, usuario="Usuario", local="Lavadeira", minutes_to_timestamp=15):
         load_dotenv()
 
         self._base_url = os.getenv("BASE_URL")
         self.__TOKEN__ = None
         self._MINIMO = 4.0
         self._MAXIMO = 6.8
-
-        # Informações AINDA estática para usuario e local
+        self._MINUTES_TO_TIMESTAMP = minutes_to_timestamp * 60 * 1000
         self._usuario = usuario
         self._local = local
 
-    ## >>>>> API para pegar o token JWT <<<<< ##
-    def renovar_token(self):
+    def _renovar_token_(self):
         payload = {"username": os.getenv("USUARIO"), "password": os.getenv("PASSWORD")}
-
-        url_api_token = f"{self._base_url}/api/auth/login"
-
+        url = f"{self._base_url}/api/auth/login"
         try:
-            # aguardando a resposta por 10 segundos, depois desiste
-            response = requests.post(url_api_token, json=payload, timeout=10)
-
-            # Resposta positiva para o tokene configurar o token
+            response = requests.post(url, json=payload, timeout=10)
             if response.status_code == 200:
-                dados = response.json()
-                token = dados["token"]
-                self.__TOKEN__ = f"Bearer {token}"
-
+                self.__TOKEN__ = f"Bearer {response.json()['token']}"
             else:
-                raise Exception("FalhaAoAcessarAPI")
-        except Exception as e:
-            raise Exception("ErroNoToken")
+                raise Exception("FalhaToken")
+        except Exception:
+            raise Exception("ErroConexaoToken")
 
-    ## >>>>> API para soltar os valores de sensores a respeito da sonda mA (mili Amperes) <<<<< ##
-    # TODO: Ao inves de retornar o 401 no log, poderia informar ao sensor o valor 0 na medicao e na situacao que esta com problema
-    # Ja esta implementado a situacao, basta dizer o valor zero para a medicao, retornar um json vazio
-    def consultar_api(self):
-        url_api_dados_sensor = f"{self._base_url}/api/plugins/telemetry/DEVICE/{os.getenv('SENSOR_LAVADEIRA')}/values/timeseries"
-
-        headers = {"Authorization": self.__TOKEN__}
+    # --- O TURBO: Cache de 30 segundos nas chamadas de API ---
+    @st.cache_data(ttl=30, show_spinner=False)
+    def _consultar_api_unique_(_self):
+        # _self com underline evita erro de hash do Streamlit
+        url = f"{_self._base_url}/api/plugins/telemetry/DEVICE/{os.getenv('SENSOR_LAVADEIRA')}/values/timeseries"
+        headers = {"Authorization": _self.__TOKEN__}
         params = {"useStrictDataTypes": "false"}
 
         try:
-            # Acessar a API do tipo GET
-            # timeout(5, 10)
-            # 5     --> Tempo máximo para estabelecer a conexão
-            # 10    --> Tempo máximo para receber a resposta
             response = requests.get(
-                url_api_dados_sensor, headers=headers, params=params, timeout=(5, 10)
+                url, headers=headers, params=params, timeout=(5, 10)
             )
-
-            # Cenário: Token Vencido: error 401
             if response.status_code == 401:
-                self.renovar_token()
+                _self._renovar_token_()
+                headers["Authorization"] = _self.__TOKEN__
+                response = requests.get(
+                    url, headers=headers, params=params, timeout=(5, 10)
+                )
 
-                # Tenta novamente o novo token (recursividade)
-                headers = {"Authorization": self.__TOKEN__}
-                params = {"useStrictDataTypes": "false"}
-
-            # Tentar novamente a conexao com token renovado
-            response = requests.get(
-                url_api_dados_sensor, headers=headers, params=params, timeout=(5, 10)
-            )
-
-            # Caso dê erro depois de tentar renovar, levanta a exceção do erro
             response.raise_for_status()
-
             return response.json()
+        except Exception:
+            return {}
 
-        except requests.exceptions.Timeout:
-            raise Exception("TimeoutConexao")
+    @st.cache_data(ttl=60, show_spinner=False)
+    def _consultar_api_time_series_(_self, ts_inicio, ts_fim):
+        url = f"{_self._base_url}/api/plugins/telemetry/DEVICE/{os.getenv('SENSOR_LAVADEIRA')}/values/timeseries?keys=ia&startTs={ts_inicio}&endTs={ts_fim}&agg=AVG"
+        headers = {"Authorization": _self.__TOKEN__}
 
-        except requests.exceptions.ConnectionError:
-            raise Exception("ErroConexao")
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                params={"useStrictDataTypes": "false"},
+                timeout=(10, 20),
+            )
+            if response.status_code == 401:
+                _self._renovar_token_()
+                headers["Authorization"] = _self.__TOKEN__
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    params={"useStrictDataTypes": "false"},
+                    timeout=(10, 20),
+                )
+            return response.json()
+        except Exception:
+            return {}
 
-        except Exception as e:
-            raise e
-
-    ## >>>>> Método para converter o numero de timestamp em datetime em formato string e no tipo datetime <<<<< ##
-    def convert_timestamp_date(self, timestamp):
+    def _convert_timestamp_date_(self, timestamp):
         if timestamp is None:
             return None, None
+        dt_obj = datetime.fromtimestamp(float(timestamp) / 1000)
+        return dt_obj, dt_obj.strftime("%d/%m/%Y %H:%M:%S")
 
-        timestamp_ms = float(timestamp)  # Garante que é numero
-        timestamp_s = timestamp_ms / 1000
+    def _analisando_tendencias_(self, ts_ini, ts_fim, valor_atual):
+        try:
+            dados = self._consultar_api_time_series_(ts_ini, ts_fim)
+            if not dados or "ia" not in dados:
+                return 0, "Sem Dados"
 
-        # Objeto datetime (para uso no cálculo de tempo)
-        data_hora_obj = datetime.fromtimestamp(timestamp_s)
+            valores = [float(i["value"]) for i in dados["ia"]]
+            if not valores:
+                return 0, "Aguardando"
 
-        # String formatada (para salvar no banco/csv)
-        data_formatada_str = data_hora_obj.strftime("%d/%m/%Y %H:%M:%S")
+            media = sum(valores) / len(valores)
+            margem = media * 0.003  # 0.3%
 
-        # Retorna os dois valores como uma tupla
-        return data_hora_obj, data_formatada_str
+            if valor_atual > (media + margem):
+                status = "Enchendo"
+            elif valor_atual < (media - margem):
+                status = "Esvaziando"
+            else:
+                status = "Estavel"
 
-    ## >>>>> Populando a lista ou os pins que são retornados do sensor <<<<< ##
-    # TODO: Aqui precisa futuramente quando tiver o sistema de login e mais sensores trocar e passar as informações aqui
-    # é preciso passar lá no construtor o usuario, local
+            return round(media, 2), status
+        except:
+            return 0, "Com Problema"
+
     def create_pin_sensor(self):
         try:
-            dados_json = self.consultar_api()
+            # Chama a função cacheada
+            dados_json = self._consultar_api_unique_()
 
-            # Validação do sensor sem dados
-            if "ia" not in dados_json or len(dados_json["ia"]) == 0:
-                no_situacao = "Com Problema"
+            if not dados_json or "ia" not in dados_json or not dados_json["ia"]:
+                # Retorna estrutura vazia padrão em caso de erro para não quebrar índices
+                return [
+                    self._usuario,
+                    "Sem Sinal",
+                    self._local,
+                    "",
+                    "",
+                    "---",
+                    0.0,
+                    0.0,
+                    "Aguardando",
+                    0.0,
+                ]
 
-            valor_mA = float(dados_json["ia"][0]["value"])
-            valor_timestamp = int(dados_json["ia"][0]["ts"])
+            val_mA = float(dados_json["ia"][0]["value"])
+            ts = int(dados_json["ia"][0]["ts"])
 
-            # Caso o valor de mA esteja abaixo de 4, não necessariamente 0, tambem é um erro
-            no_situacao = "Normal" if valor_mA > 4.0 else "Com Problema"
+            _, dt_str = self._convert_timestamp_date_(ts)
 
-            # esta variavel é para ligar com a dim_tempo, sera no formato 20250113 (aqui a data seria 13/01/2025)
-            co_tempo = datetime.now().strftime("%Y%m%d")
-            dt_requisicao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            # Cálculo Percentual
+            perc = round((val_mA - self._MINIMO) / (self._MAXIMO - self._MINIMO), 4)
 
-            # O sensor retorna o tempo dele em timestamp por isso usamos o modulo acima
-            dt_pin_obj, dt_pin_str = self.convert_timestamp_date(valor_timestamp)
-
-            # Valor de medicao em mA (é o valor padrão que vem no SENSOR)
-            vl_medicao = valor_mA
-
-            # O sensor ele vai de 4 até 20 mA, acontece que esta sonda esta no local errado (ele vai de 4 até 6.8 mA, nao chega até 20mA)
-            # mas tambem gera confusão esse range de 4 até 6.8 mA, logo, pediu-se que trabalhe em porcentagem sendo 4 mA como 0% e
-            # 6.8 mA é de 100%.. embora tenha registros de 6.9 mA, vamos capturar este caso depois para tentar verificar e alterar no
-            # construtor os valores considerados máximo e minimo.. abaixo segue o calculo
-            # (Valor Atual Sensor - Valor Mínimo) / (Valor Máximo - Valor Mínimo)
-            vl_percentual = round(
-                (valor_mA - self._MINIMO) / (self._MAXIMO - self._MINIMO), 4
+            # Tendência
+            media, status = self._analisando_tendencias_(
+                int(ts - self._MINUTES_TO_TIMESTAMP), int(ts), val_mA
             )
 
-            # Retornando a lista de pins para inserir depois em um buffer
-            lista_pin = [
-                self._usuario,
-                no_situacao,
-                self._local,
-                co_tempo,
-                dt_requisicao,
-                dt_pin_str,
-                vl_medicao,
-                vl_percentual,
+            situacao = (
+                "Normal"
+                if val_mA > 4.0 and status != "Com Problema"
+                else "Com Problema"
+            )
+
+            # MANTIVE A MESMA ESTRUTURA DE LISTA QUE SEU CONTROLLER USA
+            return [
+                self._usuario,  # 0
+                situacao,  # 1
+                self._local,  # 2
+                datetime.now().strftime("%Y%m%d"),  # 3
+                datetime.now().strftime("%d/%m/%Y %H:%M:%S"),  # 4
+                dt_str,  # 5 (DATA DO PIN)
+                val_mA,  # 6 (VALOR mA)
+                perc,  # 7 (PERCENTUAL)
+                status,  # 8 (STATUS)
+                media,  # 9
             ]
 
-            return lista_pin
-
         except Exception as e:
-            raise e
+            print(f"Erro create_pin: {e}")
+            return [
+                self._usuario,
+                "Erro",
+                self._local,
+                "",
+                "",
+                "---",
+                0.0,
+                0.0,
+                "Erro",
+                0.0,
+            ]
