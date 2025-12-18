@@ -88,23 +88,36 @@ div.block-container {
     background: linear-gradient(to top, var(--agua-critico-top), var(--agua-critico-bot));
 }
 
-/* Efeito de Ondas */
+/* Efeito de Ondas - CORRIGIDO */
 .agua-base::before,
 .agua-base::after {
     content: "";
     position: absolute;
-    width: 200%;
-    height: 200%;
-    top: -150%;
-    left: -50%;
+    /* MUDANÇA 1: Tamanho fixo em PX, não em % */
+    /* Como o tanque tem 140px de largura, usamos 300px para sobrar margem ao girar */
+    width: 300px;
+    height: 300px;
+
+    /* MUDANÇA 2: Posição fixa em PX */
+    /* Puxamos para cima para que apenas a borda inferior da "bola" toque a água */
+    top: -265px;
+
+    /* Centralizando horizontalmente */
+    left: 50%;
+    margin-left: -150px;
+    /* Metade da largura (300/2) para centralizar exato */
+
     background-color: rgba(255, 255, 255, 0.4);
-    border-radius: 40%;
+    border-radius: 38%;
+    /* Um pouco menos redondo para a onda ficar mais "agitada" */
     z-index: 2;
 }
 
 .agua-base::after {
     background-color: rgba(255, 255, 255, 0.2);
-    border-radius: 45%;
+    border-radius: 43%;
+    /* Ligeira diferença na altura para criar profundidade entre as duas ondas */
+    top: -270px;
 }
 
 @keyframes girar {

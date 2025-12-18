@@ -13,7 +13,7 @@ from src.ui.components import (
 
 
 # --- CONFIGURAÇÃO INICIAL ---
-st.set_page_config(page_title="Telemetria H2O", page_icon="💧", layout="wide")
+st.set_page_config(page_title="Telemetria", page_icon="💧", layout="wide")
 BRAZIL_TZ = pytz.timezone("America/Sao_Paulo")
 INTERVALO_ATUALIZACAO_SEG = 240  # 4 minutos
 
