@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, timedelta  # AQUI JÁ IMPORTAMOS O TIMEDELTA
 import pytz
+import base64
 import src.ui.dashboards as dashboards
 
 # Seus módulos
@@ -20,6 +21,71 @@ INTERVALO_ATUALIZACAO_SEG = 240  # 4 minutos
 # Instancia sensor e carrega CSS
 sensor = Sensor()
 load_css()
+
+
+# 2. FUNÇÃO AUXILIAR PARA LER SUA LOGO LOCAL (SVG)
+def get_img_as_base64(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except Exception as e:
+        return None
+
+
+# Carrega sua logo específica
+logo_b64 = get_img_as_base64("assets/img/logo-dark-rancharia.svg")
+# Se der erro na leitura, usa um placeholder transparente
+img_tag = (
+    f'<img src="data:image/svg+xml;base64,{logo_b64}" style="width: 200px; height: 100;">'
+    if logo_b64
+    else "💧"
+)
+
+# 3. CSS PARA NÃO CORTAR O TOPO
+st.markdown(
+    """
+    <style>
+        /* Empurra o conteúdo para baixo para não ficar escondido */
+        .block-container {
+            padding-top: 3.5rem; 
+            padding-bottom: 3rem;
+        }
+        /* Remove menu padrão se quiser limpar a tela */
+        #MainMenu {visibility: hidden;}
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+# AJUSTE AQUI: Aumentei width para 160px para a logo horizontal ficar legível
+st.markdown(
+    f"""
+    <div style="
+        display: flex; 
+        align-items: center; 
+        gap: 20px; 
+        margin-bottom: 25px; 
+        background-color: #262A3B; 
+        padding: 10px 20px; /* Reduzi um pouco o padding vertical para a caixa não ficar gigante */
+        border-radius: 12px; 
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    ">
+        <img src="data:image/svg+xml;base64,{logo_b64}" 
+            style="width: 150px; height: 100; filter: drop-shadow(0px 0px 2px rgba(255,255,255,0.3));">
+        <div style="line-height: 1.2; border-left: 1px solid #444; padding-left: 20px;">
+            <h3 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #E0E6ED;">
+                Telemetria do SAE
+            </h3>
+            <span style="font-size: 1rem; color: #00ADB5; font-weight: 500;">
+                Rancharia/SP
+            </span>
+        </div>
+    </div>
+""",
+    unsafe_allow_html=True,
+)
 
 # --- ESTADOS GLOBAIS ---
 if "config_bombas" not in st.session_state:
