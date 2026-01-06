@@ -1,6 +1,16 @@
-from src.controllers.Sensor import Sensor
+import os
+from src.services.ReleClient import ReleClient
+from src.controllers.Rele import Rele
+from dotenv import load_dotenv
 
 
-sensor = Sensor()
+load_dotenv()
 
-print(sensor.get_pin_info())
+
+id_rele = os.getenv("RELE_IE")
+
+rele = Rele(id_rele)
+
+print(rele._status, rele._ultima_atividade)
+
+# print(rele.acionar_rele('LIGAR'))
