@@ -1,5 +1,5 @@
 import streamlit as st
-import datetime
+import base64
 
 
 def load_css():
@@ -94,5 +94,52 @@ def render_header_telemetria(tempo_captura, segundos_restantes):
             </div>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+
+
+def get_img_as_base64(file_path):
+    # Função auxiliar para ler imagens (se já não tiver, adicione)
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except Exception:
+        return None
+
+
+def render_layout():
+    """
+    Função que desenha o cabeçalho e carrega o CSS.
+    Será chamada em TODAS as páginas (Login e Home).
+    """
+    # 1. Chama sua função de CSS existente
+    load_css()
+
+    # 2. CSS Adicional para remover margens do Streamlit
+    st.markdown(
+        """
+        <style>
+            .block-container { padding-top: 3.5rem; padding-bottom: 3rem; }
+            #MainMenu {visibility: hidden;}
+        </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # 3. Cabeçalho Padrão
+    logo_b64 = get_img_as_base64("assets/img/logo-dark-rancharia.svg")
+
+    st.markdown(
+        f"""
+        <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 25px; 
+            background-color: #262A3B; padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+            <img src="data:image/svg+xml;base64,{logo_b64}" style="width: 150px;">
+            <div style="line-height: 1.2; border-left: 1px solid #444; padding-left: 20px;">
+                <h3 style="margin: 0; font-size: 1.5rem; color: #E0E6ED;">Telemetria do SAE</h3>
+                <span style="color: #00ADB5;">Rancharia/SP</span>
+            </div>
+        </div>
+    """,
         unsafe_allow_html=True,
     )
