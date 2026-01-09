@@ -53,19 +53,19 @@ def show(sensor, rele):
         ### ------------------------------ ##
 
         # Primeiro verificamos se ela consta como ligada na memória
-        bomba_esta_ligada = st.session_state["config_bombas"]["bomba_12"]["ligada"]
+        # bomba_esta_ligada = st.session_state["config_bombas"]["bomba_12"]["ligada"]
 
         # Se o nível for baixo E ela estiver ligada:
-        if int(nivel_safe) <= 25 and bomba_esta_ligada:
+        #if int(nivel_safe) <= 25 and bomba_esta_ligada:
             # 1. Ação Física: Desliga o relé
-            rele.DESLIGAR_BOMBA()
+            #rele.DESLIGAR_BOMBA()
 
             # 2. Ação Lógica: Atualiza a memória IMEDIATAMENTE
-            st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
+            #st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
 
             # 3. Reinício: Manda o Streamlit rodar a tela de novo agora mesmo
             # Isso garante que o botão fique vermelho instantaneamente
-            st.rerun()
+            #st.rerun()
 
         # Tratamento de erro caso data_base venha vazia ou com formato diferente
         try:
