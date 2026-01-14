@@ -44,6 +44,21 @@ def show(sensor, rele):
         perc, status = sensor.get_status_reservatorio()
         data_base = sensor.get_tempo_pin()
 
+        # Aqui nós forçamos o sistema a verificar como o relé está AGORA, 
+        # caso ele tenha sido ligado/desligado manualmente ou por outra lógica.
+        try:
+            status_real_bomba_12 = rele.get_status_bomba() # Pergunta para o hardware
+            
+            # Atualiza a memória do Streamlit para refletir a realidade
+            if "config_bombas" in st.session_state:
+                st.session_state["config_bombas"]["bomba_12"]["ligada"] = status_real_bomba_12
+                
+                # Se tiver outras bombas reais, faça o mesmo aqui:
+                # status_real_outra = rele.get_status_outra()
+                # st.session_state["config_bombas"]["bomba_outra"]["ligada"] = status_real_outra
+        except Exception as e:
+            st.toast(f"Erro ao ler status real: {e}", icon="⚠️")
+
         nivel_safe = max(0, min(100, perc))
 
         ### ----> CAMADA DE PROTEÇÃO <---- ##
@@ -56,16 +71,16 @@ def show(sensor, rele):
         bomba_esta_ligada = st.session_state["config_bombas"]["bomba_12"]["ligada"]
 
         # Se o nível for baixo E ela estiver ligada:
-        #if int(nivel_safe) <= 20 and bomba_esta_ligada:
+        if int(nivel_safe) <= 20 and bomba_esta_ligada:
             # 1. Ação Física: Desliga o relé
-            #rele.DESLIGAR_BOMBA()
+            rele.DESLIGAR_BOMBA()
 
             # 2. Ação Lógica: Atualiza a memória IMEDIATAMENTE
-            #st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
+            st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
 
             # 3. Reinício: Manda o Streamlit rodar a tela de novo agora mesmo
             # Isso garante que o botão fique vermelho instantaneamente
-            # st.rerun()
+            st.rerun()
 
         # Tratamento de erro caso data_base venha vazia ou com formato diferente
         try:
