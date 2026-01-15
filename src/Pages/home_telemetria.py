@@ -2,15 +2,13 @@ import streamlit as st
 from datetime import datetime, timedelta
 import pytz
 
-# Seus módulos (Ajuste os imports conforme a estrutura exata, se necessário)
-# Assumindo que você está rodando do diretório raiz onde 'ui' e 'src' são visíveis
+# Seus módulos
 import src.ui.dashboards as dashboards
 from src.ui.components import render_card_reservatorio_topo
 
 # --- CONFIGURAÇÃO ---
 BRAZIL_TZ = pytz.timezone("America/Sao_Paulo")
 INTERVALO_ATUALIZACAO_SEG = 190  # 3 minutos
-
 
 def show(sensor, rele):
     # --- ESTADOS GLOBAIS (Inicialização) ---
@@ -28,6 +26,11 @@ def show(sensor, rele):
     if "confirmacao_pendente" not in st.session_state:
         st.session_state["confirmacao_pendente"] = None
 
+    # [ALTERAÇÃO 1] Inicializa o controle de tempo da interação do usuário
+    if "ultima_interacao_usuario" not in st.session_state:
+        # Começa com uma data antiga para permitir a primeira leitura livremente
+        st.session_state["ultima_interacao_usuario"] = datetime.min.replace(tzinfo=BRAZIL_TZ)
+
     # --- ESTADOS DE FILTRO ---
     if "data_inicio_padrao" not in st.session_state:
         st.session_state["data_inicio_padrao"] = datetime.now(BRAZIL_TZ) - timedelta(
@@ -44,27 +47,33 @@ def show(sensor, rele):
         perc, status = sensor.get_status_reservatorio()
         data_base = sensor.get_tempo_pin()
 
-        # Aqui nós forçamos o sistema a verificar como o relé está AGORA, 
-        # caso ele tenha sido ligado/desligado manualmente ou por outra lógica.
-        try:
-            status_real_bomba_12 = rele.get_status_bomba() # Pergunta para o hardware
-            
-            # Atualiza a memória do Streamlit para refletir a realidade
-            if "config_bombas" in st.session_state:
-                st.session_state["config_bombas"]["bomba_12"]["ligada"] = status_real_bomba_12
+        # [ALTERAÇÃO 2] Sincronização com Hardware PROTEGIDA por tempo (Delay de 5s)
+        # ---------------------------------------------------------------------
+        agora = datetime.now(BRAZIL_TZ)
+        
+        # Calcula quantos segundos passaram desde o último clique
+        tempo_desde_clique = (agora - st.session_state["ultima_interacao_usuario"]).total_seconds()
+
+        # Só confere o hardware se o usuário NÃO clicou nos últimos 5 segundos
+        if tempo_desde_clique > 5:
+            try:
+                status_real_bomba_12 = rele.get_status_bomba() # Pergunta para o hardware
                 
-                # Se tiver outras bombas reais, faça o mesmo aqui:
-                # status_real_outra = rele.get_status_outra()
-                # st.session_state["config_bombas"]["bomba_outra"]["ligada"] = status_real_outra
-        except Exception as e:
-            st.toast(f"Erro ao ler status real: {e}", icon="⚠️")
+                # Atualiza a memória do Streamlit para refletir a realidade
+                if "config_bombas" in st.session_state:
+                    st.session_state["config_bombas"]["bomba_12"]["ligada"] = status_real_bomba_12
+                    
+                    # Se tiver outras bombas reais, faça o mesmo aqui...
+            except Exception as e:
+                st.toast(f"Erro ao ler status real: {e}", icon="⚠️")
+        # ---------------------------------------------------------------------
 
         nivel_safe = max(0, min(100, perc))
 
         ### ----> CAMADA DE PROTEÇÃO <---- ##
-        #      DESLIGAR A BOMBA            #
-        #        QUANDO ATINGIR O NIVEL    #
-        #           CONSIDERADO 25%        #
+        #       DESLIGAR A BOMBA            #
+        #        QUANDO ATINGIR O NIVEL     #
+        #             CONSIDERADO 25%       #
         ### ------------------------------ ##
 
         # Primeiro verificamos se ela consta como ligada na memória
@@ -79,7 +88,6 @@ def show(sensor, rele):
             st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
 
             # 3. Reinício: Manda o Streamlit rodar a tela de novo agora mesmo
-            # Isso garante que o botão fique vermelho instantaneamente
             st.rerun()
 
         # Tratamento de erro caso data_base venha vazia ou com formato diferente
@@ -165,6 +173,9 @@ def show(sensor, rele):
 
                             # --- CALLBACK OTIMISTA ---
                             def on_click_bomba(k=chave):
+                                # [ALTERAÇÃO 3] Registra que o usuário mexeu AGORA
+                                st.session_state["ultima_interacao_usuario"] = datetime.now(BRAZIL_TZ)
+                                
                                 if st.session_state.get("confirmacao_pendente") == k:
                                     # Lógica de confirmação e envio para hardware
                                     estado_atual = st.session_state["config_bombas"][k][
