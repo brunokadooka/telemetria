@@ -1,244 +1,154 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import pytz
+import time
 
-# Seus módulos
+# Seus imports
 import src.ui.dashboards as dashboards
 from src.ui.components import render_card_reservatorio_topo
 
 # --- CONFIGURAÇÃO ---
 BRAZIL_TZ = pytz.timezone("America/Sao_Paulo")
-INTERVALO_ATUALIZACAO_SEG = 190  # 3 minutos
+INTERVALO_ATUALIZACAO_SEG = 190 
+TEMPO_RESPIRO_HARDWARE = 10 # <--- Ajuste aqui: Segundos que o sistema "finge" que já ligou enquanto o hardware processa
 
 def show(sensor, rele):
-    # --- ESTADOS GLOBAIS (Inicialização) ---
-    if "config_bombas" not in st.session_state:
-        # Importante: Lê o hardware na primeira carga
-        st.session_state["config_bombas"] = {
-            "bomba_principal": {"nome": "Bomba Principal (Simulação)", "ligada": False},
-            "bomba_12": {
-                "nome": "Bomba 12 Polegadas",
-                "ligada": rele.get_status_bomba(),
-            },
-            "bomba_12_reserva": {"nome": "Bomba 12 Pol (Reserva)", "ligada": False},
-        }
-
+    # --- ESTADOS GLOBAIS ---
     if "confirmacao_pendente" not in st.session_state:
         st.session_state["confirmacao_pendente"] = None
+    
+    # Armazena o que o usuário "pediu" e quando pediu
+    if "estado_otimista" not in st.session_state:
+        st.session_state["estado_otimista"] = {
+            "ligada": False, # O estado que o usuário quer
+            "timestamp": 0   # Quando o usuário clicou
+        }
 
-    # [ALTERAÇÃO 1] Inicializa o controle de tempo da interação do usuário
-    if "ultima_interacao_usuario" not in st.session_state:
-        # Começa com uma data antiga para permitir a primeira leitura livremente
-        st.session_state["ultima_interacao_usuario"] = datetime.min.replace(tzinfo=BRAZIL_TZ)
-
-    # --- ESTADOS DE FILTRO ---
+    # Filtros de data
     if "data_inicio_padrao" not in st.session_state:
-        st.session_state["data_inicio_padrao"] = datetime.now(BRAZIL_TZ) - timedelta(
-            days=1
-        )
+        st.session_state["data_inicio_padrao"] = datetime.now(BRAZIL_TZ) - timedelta(days=1)
     if "data_final_padrao" not in st.session_state:
         st.session_state["data_final_padrao"] = datetime.now(BRAZIL_TZ)
 
-    # --- FRAGMENTO AUTOMÁTICO (O Coração da Telemetria) ---
+    # --- FRAGMENTO AUTOMÁTICO ---
     @st.fragment(run_every=INTERVALO_ATUALIZACAO_SEG)
     def painel_telemetria_auto_update():
-
-        # 1. Leitura de Sensores (Reservatório)
-        perc, status = sensor.get_status_reservatorio()
-        data_base = sensor.get_tempo_pin()
-
-        # [ALTERAÇÃO 2] Sincronização com Hardware PROTEGIDA por tempo (Delay de 5s)
-        # ---------------------------------------------------------------------
-        agora = datetime.now(BRAZIL_TZ)
         
-        # Calcula quantos segundos passaram desde o último clique
-        tempo_desde_clique = (agora - st.session_state["ultima_interacao_usuario"]).total_seconds()
-
-        # Só confere o hardware se o usuário NÃO clicou nos últimos 5 segundos
-        if tempo_desde_clique > 5:
+        # 1. LÓGICA DO ESTADO VISUAL (O SEGREDINHO)
+        # --------------------------------------------------
+        agora = time.time()
+        tempo_passado = agora - st.session_state["estado_otimista"]["timestamp"]
+        
+        # Modo Otimista: Se o usuário clicou há pouco tempo, mostramos o que ele quer ver
+        em_modo_espera = tempo_passado < TEMPO_RESPIRO_HARDWARE
+        
+        if em_modo_espera:
+            # Confia no usuário enquanto o hardware trabalha
+            status_para_exibir = st.session_state["estado_otimista"]["ligada"]
+            aviso_status = "⏳ Processando..."
+        else:
+            # Já passou o tempo de espera? Agora a verdade é o hardware!
             try:
-                status_real_bomba_12 = rele.get_status_bomba() # Pergunta para o hardware
-                
-                # Atualiza a memória do Streamlit para refletir a realidade
-                if "config_bombas" in st.session_state:
-                    st.session_state["config_bombas"]["bomba_12"]["ligada"] = status_real_bomba_12
-                    
-                    # Se tiver outras bombas reais, faça o mesmo aqui...
-            except Exception as e:
-                st.toast(f"Erro ao ler status real: {e}", icon="⚠️")
-        # ---------------------------------------------------------------------
+                status_real_hard = rele.get_status_bomba()
+                status_para_exibir = status_real_hard
+                aviso_status = "" # Tudo sincronizado
+            except:
+                status_para_exibir = False
+                aviso_status = "⚠️ Erro leitura"
 
+        # Leitura do sensor de nível (Independente da bomba)
+        perc, status_nivel = sensor.get_status_reservatorio()
         nivel_safe = max(0, min(100, perc))
 
-        ### ----> CAMADA DE PROTEÇÃO <---- ##
-        #       DESLIGAR A BOMBA            #
-        #        QUANDO ATINGIR O NIVEL     #
-        #             CONSIDERADO 25%       #
-        ### ------------------------------ ##
-
-        # Primeiro verificamos se ela consta como ligada na memória
-        bomba_esta_ligada = st.session_state["config_bombas"]["bomba_12"]["ligada"]
-
-        # Se o nível for baixo E ela estiver ligada:
-        if int(nivel_safe) <= 20 and bomba_esta_ligada:
-            # 1. Ação Física: Desliga o relé
+        # 2. CAMADA DE PROTEÇÃO AUTOMÁTICA
+        # --------------------------------------------------
+        # Se for proteção automática, desligamos o otimismo e forçamos desligar
+        if int(nivel_safe) <= 20 and status_para_exibir:
             rele.DESLIGAR_BOMBA()
-
-            # 2. Ação Lógica: Atualiza a memória IMEDIATAMENTE
-            st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
-
-            # 3. Reinício: Manda o Streamlit rodar a tela de novo agora mesmo
+            st.session_state["estado_otimista"]["timestamp"] = 0 # Cancela delay
             st.rerun()
 
-        # Tratamento de erro caso data_base venha vazia ou com formato diferente
+        # 3. HEADER E DADOS
+        # --------------------------------------------------
+        data_base = sensor.get_tempo_pin()
         try:
-            data_base_dt = datetime.strptime(data_base, "%d/%m/%Y %H:%M:%S")
-            data_base_dt = data_base_dt.replace(tzinfo=BRAZIL_TZ)
-            prox_atualizacao = (
-                data_base_dt + timedelta(seconds=INTERVALO_ATUALIZACAO_SEG)
-            ).strftime("%H:%M:%S")
+            dt_obj = datetime.strptime(data_base, "%d/%m/%Y %H:%M:%S").replace(tzinfo=BRAZIL_TZ)
+            prox = (dt_obj + timedelta(seconds=INTERVALO_ATUALIZACAO_SEG)).strftime("%H:%M:%S")
         except:
-            prox_atualizacao = "..."
+            prox = "..."
 
-        dados = {
-            "nivel": perc,
-            "status": status,
-            "mA": sensor.get_vl_mA(),
-            "hora": sensor.get_tempo_pin(),
-            "local": sensor.get_local(),
-        }
-
-        # Header do Painel (Informações de atualização)
         st.markdown(
             f"""
             <div style="background-color:#1E1E1E; padding:15px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <span style="color:#FFF; font-size:1.2rem;">⏱️ Última Leitura: <b>{dados['hora']}</b></span>
-                <span style="color:#00ADB5; font-size:1.0rem;">Próxima atualização: <b>{prox_atualizacao}</b></span>
+                <span style="color:#FFF; font-size:1.2rem;">⏱️ Leitura: <b>{sensor.get_tempo_pin()}</b></span>
+                <span style="color:#00ADB5; font-size:1.0rem;">Próxima: <b>{prox}</b></span>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """, unsafe_allow_html=True
         )
 
         col_monitor, col_controle = st.columns([1, 2])
 
-        # Coluna 1: Reservatório
         with col_monitor:
             with st.container(border=True):
-                render_card_reservatorio_topo(
-                    f"Caixa da {dados['local']}",
-                    dados["nivel"],
-                    dados["mA"],
-                    dados["status"],
-                )
+                render_card_reservatorio_topo(f"Caixa {sensor.get_local()}", perc, sensor.get_vl_mA(), status_nivel)
 
-        # Coluna 2: Bombas
         with col_controle:
             with st.container(border=True):
-                st.markdown("##### ⚙️ Painel de Controle de Bombas")
+                st.markdown("##### ⚙️ Painel de Controle")
                 st.info("Clique para armar, clique novamente para confirmar.")
 
-                chaves = list(st.session_state["config_bombas"].keys())
+                with st.container(border=True):
+                    c1, c2, c3 = st.columns([2, 1, 1])
+                    
+                    with c1: 
+                        st.markdown("<div style='padding-top:5px; font-weight:bold;'>Bomba 12 Polegadas</div>", unsafe_allow_html=True)
+                        # Mostra se está aguardando o hardware
+                        if aviso_status:
+                            st.caption(f"{aviso_status}")
 
-                for chave in chaves:
-                    bomba = st.session_state["config_bombas"][chave]
+                    with c2:
+                        cor = "#2ECC71" if status_para_exibir else "#FF6B6B"
+                        txt = "LIGADA" if status_para_exibir else "PARADA"
+                        st.markdown(f"<div style='text-align:center; color:{cor}; font-weight:500; border:1px solid {cor}; border-radius:4px; padding:6px;'>● {txt}</div>", unsafe_allow_html=True)
 
-                    with st.container(border=True):
-                        c1, c2, c3 = st.columns([2, 1, 1])
+                    with c3:
+                        if st.session_state["confirmacao_pendente"] == "bomba_12":
+                            lbl, tp = "CONFIRMAR?", "primary"
+                        else:
+                            lbl = "DESLIGAR" if status_para_exibir else "LIGAR"
+                            tp = "secondary"
 
-                        # Nome
-                        with c1:
-                            st.markdown(
-                                f"<div style='padding-top:5px; font-weight:bold;'>{bomba['nome']}</div>",
-                                unsafe_allow_html=True,
-                            )
-
-                        # Luzinha (Status Visual)
-                        with c2:
-                            is_ligada = bomba["ligada"]
-                            cor = "#2ECC71" if is_ligada else "#FF6B6B"
-                            txt = "LIGADA" if is_ligada else "PARADA"
-                            st.markdown(
-                                f"<div style='text-align:center; color:{cor}; font-weight:500; border:1px solid {cor}; border-radius:4px; padding:6px;'>● {txt}</div>",
-                                unsafe_allow_html=True,
-                            )
-
-                        # Botão de Ação
-                        with c3:
-                            if st.session_state.get("confirmacao_pendente") == chave:
-                                lbl = "CONFIRMAR?"
-                                tp = "primary"
-                            else:
-                                lbl = "DESLIGAR" if is_ligada else "LIGAR"
-                                tp = "secondary"
-
-                            # --- CALLBACK OTIMISTA ---
-                            def on_click_bomba(k=chave):
-                                # [ALTERAÇÃO 3] Registra que o usuário mexeu AGORA
-                                st.session_state["ultima_interacao_usuario"] = datetime.now(BRAZIL_TZ)
+                        def acao_botao():
+                            if st.session_state["confirmacao_pendente"] == "bomba_12":
+                                # 1. Define o que queremos fazer
+                                novo_estado = not status_para_exibir 
                                 
-                                if st.session_state.get("confirmacao_pendente") == k:
-                                    # Lógica de confirmação e envio para hardware
-                                    estado_atual = st.session_state["config_bombas"][k][
-                                        "ligada"
-                                    ]
-                                    novo_estado = not estado_atual
-
-                                    # Atualiza UI
-                                    st.session_state["config_bombas"][k][
-                                        "ligada"
-                                    ] = novo_estado
-
-                                    # Envia hardware
-                                    if k == "bomba_12":
-                                        if novo_estado:
-                                            rele.LIGAR_BOMBA()
-                                        else:
-                                            rele.DESLIGAR_BOMBA()
-
-                                    st.session_state["confirmacao_pendente"] = None
+                                # 2. Atualiza o Hardware (sem esperar a resposta lenta)
+                                if novo_estado:
+                                    rele.LIGAR_BOMBA()
                                 else:
-                                    # Primeiro clique (Armar)
-                                    st.session_state["confirmacao_pendente"] = k
+                                    rele.DESLIGAR_BOMBA()
+                                
+                                # 3. Atualiza o Estado Otimista (enganar o olho do usuário por uns segundos)
+                                st.session_state["estado_otimista"] = {
+                                    "ligada": novo_estado,
+                                    "timestamp": time.time() # Começa a contar os 10s agora
+                                }
+                                
+                                st.session_state["confirmacao_pendente"] = None
+                            else:
+                                st.session_state["confirmacao_pendente"] = "bomba_12"
 
-                            st.button(
-                                lbl,
-                                key=f"btn_{chave}",
-                                type=tp,
-                                on_click=on_click_bomba,
-                                use_container_width=True,
-                            )
+                        st.button(lbl, type=tp, on_click=acao_botao, use_container_width=True)
 
-    # --- CHAMADA DO PAINEL ---
     painel_telemetria_auto_update()
-
+    
     st.markdown("---")
-
-    # --- DASHBOARDS (Filtros e Gráficos) ---
+    # ... Gráficos ...
     with st.container(border=True):
-        col1_data, col2_data = st.columns(2)
-        with col1_data:
-            data_inicio = st.datetime_input(
-                "Data de Inicio:",
-                value=st.session_state["data_inicio_padrao"],
-                key="input_data_inicio",
-            )
-        with col2_data:
-            data_final = st.datetime_input(
-                "Data Final:",
-                value=st.session_state["data_final_padrao"],
-                key="input_data_final",
-            )
-
-    if data_inicio and data_final:
-        if data_final < data_inicio:
-            st.error("⚠️ Erro: A Data Final deve ser maior que a Data de Início.")
-            # st.stop() não é ideal dentro de uma função parcial, melhor usar return
-            return
-
-        with st.container(border=True):
-            fig = dashboards.create_graph_line(data_inicio, data_final)
-            st.plotly_chart(fig, width="stretch")
-
-        with st.container(border=True):
-            fig_bar = dashboards.create_graph_bar(data_inicio, data_final)
-            st.plotly_chart(fig_bar, width="stretch")
+        col1, col2 = st.columns(2)
+        ini = col1.datetime_input("Início", st.session_state["data_inicio_padrao"])
+        fim = col2.datetime_input("Fim", st.session_state["data_final_padrao"])
+        if ini and fim:
+            st.plotly_chart(dashboards.create_graph_line(ini, fim), use_container_width=True)
+            st.plotly_chart(dashboards.create_graph_bar(ini, fim), use_container_width=True)
