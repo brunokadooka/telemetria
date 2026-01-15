@@ -133,4 +133,32 @@ def show(sensor, rele):
                                         if novo_estado_real: 
                                             rele.LIGAR_BOMBA()
                                         else: 
-                                            rele.DESLIGAR_B
+                                            rele.DESLIGAR_BOMBA()
+                                    
+                                    # 2. ATIVA MENTIRINHA VISUAL (Para parecer instantâneo)
+                                    # Isso faz o botão ficar verde antes mesmo do hardware responder
+                                    if k == "bomba_12":
+                                        st.session_state["override_visual"] = {
+                                            "ativo": True,
+                                            "status_fake": novo_estado_real,
+                                            "timestamp": time.time()
+                                        }
+
+                                    st.session_state["confirmacao_pendente"] = None
+                                    st.rerun() # Atualiza a tela na hora com a mentirinha
+                                else:
+                                    st.session_state["confirmacao_pendente"] = k
+
+                            st.button(lbl, key=f"btn_{chave}", type=tp, on_click=acao_botao, use_container_width=True)
+
+    painel_telemetria_auto_update()
+    
+    st.markdown("---")
+    # Dashboards e Filtros mantidos...
+    with st.container(border=True):
+        col1, col2 = st.columns(2)
+        ini = col1.datetime_input("Início", st.session_state["data_inicio_padrao"])
+        fim = col2.datetime_input("Fim", st.session_state["data_final_padrao"])
+        if ini and fim:
+            st.plotly_chart(dashboards.create_graph_line(ini, fim), use_container_width=True)
+            st.plotly_chart(dashboards.create_graph_bar(ini, fim), use_container_width=True)
