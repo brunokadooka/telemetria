@@ -16,12 +16,12 @@ def show(sensor, rele):
     if "confirmacao_pendente" not in st.session_state:
         st.session_state["confirmacao_pendente"] = None
     
-    # Variáveis para a "Mentirinha Visual" (Feedback Instantâneo)
+    
     if "override_visual" not in st.session_state:
         st.session_state["override_visual"] = {
-            "ativo": False,      # Se estamos fingindo o status agora
-            "status_fake": False,# Qual status estamos fingindo
-            "timestamp": 0       # Quando começou a fingir
+            "ativo": False,      
+            "status_fake": False,
+            "timestamp": 0       
         }
 
     # Filtros de data
@@ -145,7 +145,7 @@ def show(sensor, rele):
                                         }
 
                                     st.session_state["confirmacao_pendente"] = None
-                                    st.rerun() # Atualiza a tela na hora com a mentirinha
+                                    # st.rerun()
                                 else:
                                     st.session_state["confirmacao_pendente"] = k
 
