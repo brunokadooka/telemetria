@@ -220,9 +220,17 @@ def show(sensor, rele):
                                         # 1. Hardware (Pulso)
                                         if ctrl_8_on and ctrl_8_off:
                                             if novo_estado:
-                                                ctrl_8_on.criando_pulso(0.1, True)
+                                                ctrl_8_on.criando_pulso(0.02, True)
                                             else:
-                                                ctrl_8_off.criando_pulso(0.1, False)
+                                                ctrl_8_off.criando_pulso(1, True)
+                                                verifica_desligado = (
+                                                    ctrl_8_off.verifica_status(3)
+                                                )
+
+                                                if verifica_desligado:
+                                                    ctrl_8_off.acionando_rele(
+                                                        ligar=True
+                                                    )
 
                                         # 2. Salva memória GLOBAL (RAM Server)
                                         memoria_global.bomba_8_ligada = novo_estado

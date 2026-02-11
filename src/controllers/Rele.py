@@ -6,18 +6,19 @@ from time import sleep
 from src.services.TuyaClient import TuyaClient
 from src.services.ReleClient import ReleClient
 
+
 class Rele:
     def __init__(self, id_rele):
         # Salvamos o ID para usar depois
         self.id_rele = id_rele
-        
+
         # Mantemos uma instância inicial (opcional, mas bom pra cache se precisar)
         self._rele = ReleClient(id_rele)
 
     def get_status_bomba(self):
         # Criamos um cliente novo momentâneo para pegar o dado fresco do banco/API.
         new_cliente = ReleClient(self.id_rele)
-        
+
         # Retorna o status que acabou de ser lido
         return new_cliente._status == 1
 
@@ -47,10 +48,19 @@ class ReleTuya:
 
         self._rele_tuya.acionar_rele(valor)
 
-        sleep(time_pulso / 2)
+        sleep(time_pulso / 4)
 
         self._rele_tuya.verificar_status()
 
-        sleep(time_pulso / 2)
+        sleep((time_pulso * 3) / 4)
 
         self._rele_tuya.acionar_rele((not valor))
+
+    def verifica_status(self, timer=1.5):
+        sleep(timer)
+        return self._rele_tuya.verificar_status()
+
+    def acionando_rele(self, ligar, timer=1):
+        valor = True if ligar else False
+        sleep(timer)
+        self._rele_tuya.acionar_rele(valor)
