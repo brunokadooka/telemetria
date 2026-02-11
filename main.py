@@ -1,16 +1,17 @@
 import os
-from src.services.ReleClient import ReleClient
-from src.controllers.Rele import Rele
+from src.controllers.Rele import ReleTuya
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
+rele_on = os.getenv("RELE_LAV_8P_ON_DEVICE_ID")
+rele_off = os.getenv("RELE_LAV_8P_OFF_DEVICE_ID")
 
-id_rele = os.getenv("RELE_IE")
 
-rele = Rele(id_rele)
+print("----------- Testando botao de desligar -----------")
+rele_tuya = ReleTuya(rele_off)
+rele_tuya.criando_pulso(0.1, False)
 
-print(rele._status, rele._ultima_atividade)
-
-# print(rele.acionar_rele('LIGAR'))
+print("----------- Testando botao de ligar -----------")
+rele_tuya = ReleTuya(rele_on)
+rele_tuya.criando_pulso(0.1, True)

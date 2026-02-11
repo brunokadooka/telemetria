@@ -1,23 +1,64 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import pytz
+import os
+from dotenv import load_dotenv
 
-# Seus módulos (Ajuste os imports conforme a estrutura exata, se necessário)
-# Assumindo que você está rodando do diretório raiz onde 'ui' e 'src' são visíveis
+# --- SEUS IMPORTS ---
 import src.ui.dashboards as dashboards
 from src.ui.components import render_card_reservatorio_topo
+from src.controllers.Rele import ReleTuya
+
+# Carrega variaveis de ambiente
+load_dotenv()
 
 # --- CONFIGURAÇÃO ---
 BRAZIL_TZ = pytz.timezone("America/Sao_Paulo")
-INTERVALO_ATUALIZACAO_SEG = 190  # 3 minutos
+INTERVALO_ATUALIZACAO_SEG = 190
+
+# ==============================================================================
+# --- SOLUÇÃO DE MEMÓRIA GLOBAL (RAM) ---
+# Substitui o arquivo .txt por um objeto persistente na memória do servidor
+# ==============================================================================
+
+
+class EstadoSistema:
+    def __init__(self):
+        self.bomba_8_ligada = False
+
+
+@st.cache_resource
+def get_estado_global():
+    # Esta função roda apenas UMA vez e fica em cache.
+    # O objeto 'EstadoSistema' será o mesmo para todos os usuários.
+    return EstadoSistema()
+
+
+# Instancia a memória global
+memoria_global = get_estado_global()
+
+# ==============================================================================
 
 
 def show(sensor, rele):
-    # --- ESTADOS GLOBAIS (Inicialização) ---
+    # --- 1. INICIALIZAÇÃO DOS CONTROLADORES DE PULSO ---
+    try:
+        id_on = os.getenv("RELE_LAV_8P_ON_DEVICE_ID")
+        id_off = os.getenv("RELE_LAV_8P_OFF_DEVICE_ID")
+        ctrl_8_on = ReleTuya(id_on)
+        ctrl_8_off = ReleTuya(id_off)
+    except Exception as e:
+        st.error(f"Erro ao configurar Relés Tuya: {e}")
+        ctrl_8_on = None
+        ctrl_8_off = None
+
+    # --- ESTADOS LOCAIS (INTERFACE) ---
     if "config_bombas" not in st.session_state:
-        # Importante: Lê o hardware na primeira carga
         st.session_state["config_bombas"] = {
-            "bomba_principal": {"nome": "Bomba Principal (Simulação)", "ligada": False},
+            "bomba_8": {
+                "nome": "Bomba Principal (8 Polegadas)",
+                "ligada": memoria_global.bomba_8_ligada,  # <--- Pega da memória RAM Global
+            },
             "bomba_12": {
                 "nome": "Bomba 12 Polegadas",
                 "ligada": rele.get_status_bomba(),
@@ -28,7 +69,7 @@ def show(sensor, rele):
     if "confirmacao_pendente" not in st.session_state:
         st.session_state["confirmacao_pendente"] = None
 
-    # --- ESTADOS DE FILTRO ---
+    # Filtros de data
     if "data_inicio_padrao" not in st.session_state:
         st.session_state["data_inicio_padrao"] = datetime.now(BRAZIL_TZ) - timedelta(
             days=1
@@ -36,38 +77,50 @@ def show(sensor, rele):
     if "data_final_padrao" not in st.session_state:
         st.session_state["data_final_padrao"] = datetime.now(BRAZIL_TZ)
 
-    # --- FRAGMENTO AUTOMÁTICO (O Coração da Telemetria) ---
+    # --- FRAGMENTO AUTOMÁTICO ---
     @st.fragment(run_every=INTERVALO_ATUALIZACAO_SEG)
     def painel_telemetria_auto_update():
 
-        # 1. Leitura de Sensores (Reservatório)
+        # Sincroniza a memória global com a visualização local a cada atualização
+        # Isso garante que se outra pessoa ligou, você vê atualizado aqui
+        st.session_state["config_bombas"]["bomba_8"][
+            "ligada"
+        ] = memoria_global.bomba_8_ligada
+
+        # Leitura Sensores
         perc, status = sensor.get_status_reservatorio()
         data_base = sensor.get_tempo_pin()
-
         nivel_safe = max(0, min(100, perc))
 
-        ### ----> CAMADA DE PROTEÇÃO <---- ##
-        #      DESLIGAR A BOMBA            #
-        #        QUANDO ATINGIR O NIVEL    #
-        #           CONSIDERADO 25%        #
-        ### ------------------------------ ##
+        # --- CAMADA DE PROTEÇÃO (25%) ---
+        bomba_12_ligada = (
+            st.session_state["config_bombas"].get("bomba_12", {}).get("ligada", False)
+        )
+        bomba_8_ligada = memoria_global.bomba_8_ligada  # Verifica direto na RAM Global
 
-        # Primeiro verificamos se ela consta como ligada na memória
-        bomba_esta_ligada = st.session_state["config_bombas"]["bomba_12"]["ligada"]
+        if int(nivel_safe) <= 25:
+            mudou_algo = False
 
-        # Se o nível for baixo E ela estiver ligada:
-        if int(nivel_safe) <= 25 and bomba_esta_ligada:
-            # 1. Ação Física: Desliga o relé
-            rele.DESLIGAR_BOMBA()
+            # Desliga Bomba 12
+            if bomba_12_ligada:
+                rele.DESLIGAR_BOMBA()
+                st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
+                mudou_algo = True
 
-            # 2. Ação Lógica: Atualiza a memória IMEDIATAMENTE
-            st.session_state["config_bombas"]["bomba_12"]["ligada"] = False
+            # Desliga Bomba 8
+            if bomba_8_ligada:
+                if ctrl_8_off:
+                    ctrl_8_off.criando_pulso(0.1, False)
 
-            # 3. Reinício: Manda o Streamlit rodar a tela de novo agora mesmo
-            # Isso garante que o botão fique vermelho instantaneamente
-            st.rerun()
+                # Atualiza memória GLOBAL e LOCAL
+                memoria_global.bomba_8_ligada = False
+                st.session_state["config_bombas"]["bomba_8"]["ligada"] = False
+                mudou_algo = True
 
-        # Tratamento de erro caso data_base venha vazia ou com formato diferente
+            if mudou_algo:
+                st.rerun()
+
+        # Tratamento de data/hora
         try:
             data_base_dt = datetime.strptime(data_base, "%d/%m/%Y %H:%M:%S")
             data_base_dt = data_base_dt.replace(tzinfo=BRAZIL_TZ)
@@ -85,7 +138,7 @@ def show(sensor, rele):
             "local": sensor.get_local(),
         }
 
-        # Header do Painel (Informações de atualização)
+        # --- HEADER ---
         st.markdown(
             f"""
             <div style="background-color:#1E1E1E; padding:15px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -122,14 +175,14 @@ def show(sensor, rele):
                     with st.container(border=True):
                         c1, c2, c3 = st.columns([2, 1, 1])
 
-                        # Nome
+                        # 1. Nome
                         with c1:
                             st.markdown(
                                 f"<div style='padding-top:5px; font-weight:bold;'>{bomba['nome']}</div>",
                                 unsafe_allow_html=True,
                             )
 
-                        # Luzinha (Status Visual)
+                        # 2. Status Visual
                         with c2:
                             is_ligada = bomba["ligada"]
                             cor = "#2ECC71" if is_ligada else "#FF6B6B"
@@ -139,7 +192,7 @@ def show(sensor, rele):
                                 unsafe_allow_html=True,
                             )
 
-                        # Botão de Ação
+                        # 3. Botão
                         with c3:
                             if st.session_state.get("confirmacao_pendente") == chave:
                                 lbl = "CONFIRMAR?"
@@ -148,30 +201,39 @@ def show(sensor, rele):
                                 lbl = "DESLIGAR" if is_ligada else "LIGAR"
                                 tp = "secondary"
 
-                            # --- CALLBACK OTIMISTA ---
                             def on_click_bomba(k=chave):
                                 if st.session_state.get("confirmacao_pendente") == k:
-                                    # Lógica de confirmação e envio para hardware
+                                    # -- AÇÃO CONFIRMADA --
                                     estado_atual = st.session_state["config_bombas"][k][
                                         "ligada"
                                     ]
                                     novo_estado = not estado_atual
 
-                                    # Atualiza UI
-                                    st.session_state["config_bombas"][k][
-                                        "ligada"
-                                    ] = novo_estado
-
-                                    # Envia hardware
+                                    # HARDWARE & MEMÓRIA
                                     if k == "bomba_12":
                                         if novo_estado:
                                             rele.LIGAR_BOMBA()
                                         else:
                                             rele.DESLIGAR_BOMBA()
 
+                                    elif k == "bomba_8":
+                                        # 1. Hardware (Pulso)
+                                        if ctrl_8_on and ctrl_8_off:
+                                            if novo_estado:
+                                                ctrl_8_on.criando_pulso(0.1, True)
+                                            else:
+                                                ctrl_8_off.criando_pulso(0.1, False)
+
+                                        # 2. Salva memória GLOBAL (RAM Server)
+                                        memoria_global.bomba_8_ligada = novo_estado
+
+                                    # Atualiza UI Local
+                                    st.session_state["config_bombas"][k][
+                                        "ligada"
+                                    ] = novo_estado
                                     st.session_state["confirmacao_pendente"] = None
                                 else:
-                                    # Primeiro clique (Armar)
+                                    # -- PRIMEIRO CLIQUE --
                                     st.session_state["confirmacao_pendente"] = k
 
                             st.button(
@@ -182,7 +244,7 @@ def show(sensor, rele):
                                 use_container_width=True,
                             )
 
-    # --- CHAMADA DO PAINEL ---
+    # --- EXECUÇÃO ---
     painel_telemetria_auto_update()
 
     st.markdown("---")
