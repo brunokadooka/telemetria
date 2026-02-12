@@ -62,5 +62,5 @@ class ReleTuya:
 
     def acionando_rele(self, ligar, timer=1):
         valor = True if ligar else False
-        sleep(timer)
+        sleep(timer / 2)
         self._rele_tuya.acionar_rele(valor)

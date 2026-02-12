@@ -17,6 +17,6 @@ rele_off = os.getenv("RELE_LAV_8P_OFF_DEVICE_ID")
 # rele_tuya.criando_pulso(0.1, True)
 
 
-rele_desligado = ReleTuya(rele_off)
+rele = ReleTuya(rele_on)
 
-print(rele_desligado.verifica_status())
+print(rele.acionando_rele(True))

@@ -97,6 +97,9 @@ def show(sensor, rele):
             st.session_state["config_bombas"].get("bomba_12", {}).get("ligada", False)
         )
         bomba_8_ligada = memoria_global.bomba_8_ligada  # Verifica direto na RAM Global
+        ######### RETIRAR AQUI DEPOIS QUE COLOCAR O SENSOR ########
+        # Verificando o status se a bomba esta ligada ou não, o botao desligar sempre tem de ficar "Ligado" ou fechado
+        # precisa dar um pulso, mas sempre ligar o rele, o rele precisa estar ligado.
 
         if int(nivel_safe) <= 25:
             mudou_algo = False
@@ -110,7 +113,7 @@ def show(sensor, rele):
             # Desliga Bomba 8
             if bomba_8_ligada:
                 if ctrl_8_off:
-                    ctrl_8_off.criando_pulso(0.1, False)
+                    ctrl_8_off.acionando_rele(ligar=True)
 
                 # Atualiza memória GLOBAL e LOCAL
                 memoria_global.bomba_8_ligada = False
@@ -220,17 +223,9 @@ def show(sensor, rele):
                                         # 1. Hardware (Pulso)
                                         if ctrl_8_on and ctrl_8_off:
                                             if novo_estado:
-                                                ctrl_8_on.criando_pulso(0.02, True)
+                                                ctrl_8_on.acionando_rele(True)
                                             else:
-                                                ctrl_8_off.criando_pulso(1, True)
-                                                verifica_desligado = (
-                                                    ctrl_8_off.verifica_status(3)
-                                                )
-
-                                                if verifica_desligado:
-                                                    ctrl_8_off.acionando_rele(
-                                                        ligar=True
-                                                    )
+                                                ctrl_8_off.acionando_rele(True)
 
                                         # 2. Salva memória GLOBAL (RAM Server)
                                         memoria_global.bomba_8_ligada = novo_estado
